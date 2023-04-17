@@ -14,20 +14,18 @@
 #include <string.h>
 #include <getopt.h>
 #include <string>
-
 #include <deque>
-
 #include <pthread.h>
 #include <utility>
-
 #include "dh.h"
-
 #include <iostream>
 #include <cstring>
 #include <openssl/rand.h>
-#include <sstream>  // 用于转换十六进制字符串
-#include <iomanip>  // 用于设置输出格式
+#include <sstream>
+#include <iomanip>
+
 using namespace std;
+
 
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
@@ -253,8 +251,6 @@ static void msg_win_redisplay(bool batch, const string& newmsg="", const string&
 	}
 }
 
-
-
 // 加密函数
 int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
             unsigned char *iv, unsigned char *ciphertext) {
@@ -287,8 +283,6 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
     return plaintext_len;
 }
 
-
-
 static void msg_typed(char *line)
 {
         /* TODO: Use a more secure key:                        *
@@ -320,7 +314,7 @@ static void msg_typed(char *line)
                         }
                         std::string ciphertext_hex = ss.str();
                         
-                        /* TODO: MAC:                                               *
+                        /* TODO: MAC: need to combine mac + ciphertext              *
                          * Message integrity needs to be ensured.                   *
                          * Calculate the MAC of the message before encryption.      *
                          * Then encrypt the message. Finally, combine the encrypted * 
@@ -633,6 +627,12 @@ void* recvMsg(void*)
 		if ((nbytes = recv(sockfd,msg,maxlen,0)) == -1)
 			error("recv failed");
 		msg[nbytes] = 0; /* make sure it is null-terminated */
+		
+		// TODO: after receive the combine (mac + message)
+		//       need to split it
+		//       one is ciphertext, need to decrypt and cal mac
+		//       the other one is mac
+		
 		
 		string ciphertext_hex(msg);
                 // 计算 ciphertext_hex 中的字节数
