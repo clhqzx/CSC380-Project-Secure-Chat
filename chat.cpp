@@ -98,7 +98,7 @@ int initServerNet(int port)
 	dhGen(a,A);
 	
 	const size_t klen = 128;
-
+        /*
 	// 接收客户端发送的公钥B
         unsigned char B[klen];
         int ret = recv(sockfd, B, klen, 0);
@@ -115,13 +115,17 @@ int initServerNet(int port)
             cout << "Send public key A failed!" << endl;
             return -1;
         }
-        
+        */
         /* TODO: server's key derivation:                            *
          * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
          * B is unsigned char* here                                  */
         /*
+        mpz_t B_mpz;
+        mpz_init(B_mpz);
+        mpz_import(B_mpz, klen, 1, sizeof(unsigned char), 0, 0, B);
+        
         unsigned char kA[klen];
-	dhFinal(a,A,B,kA,klen);
+	dhFinal(a,A,B_mpz,kA,klen);
 	*/
 	return 0;
 }
@@ -152,7 +156,7 @@ static int initClientNet(char* hostname, int port)
 	dhGen(b,B);
 	
 	const size_t klen = 128;
-
+        /*
 	// 将公钥B发送给服务器
 	int ret = send(sockfd, B, klen, 0);
         if(ret == -1)
@@ -169,15 +173,18 @@ static int initClientNet(char* hostname, int port)
             cout << "Receive public key A failed!" << endl;
             return -1;
         }
-        
+        */
         /* TODO: client's key derivation:                            *
          * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
          * B is unsigned char* here                                  */
         /*
-        unsigned char kB[klen];
-        dhFinal(b,B,A,kB,klen);
-        */
+        mpz_t A_mpz;
+        mpz_init(A_mpz);
+        mpz_import(A_mpz, klen, 1, sizeof(unsigned char), 0, 0, A);
         
+        unsigned char kB[klen];
+        dhFinal(b,B,A_mpz,kB,klen);
+        */
 	return 0;
 }
 
@@ -298,6 +305,11 @@ static void msg_typed(char *line)
 		 * have to wait for timeout on recv()? */
 	} else {
 		if (*line) {
+		        // calculate MAC
+		        unsigned char mac[EVP_MAX_MD_SIZE];
+                        unsigned int mac_len;
+                        HMAC(EVP_sha256(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
+
 			// 加密消息
 			unsigned char ciphertext[strlen(line) + EVP_MAX_BLOCK_LENGTH];
                         int ciphertext_len = encrypt((unsigned char*)line, strlen(line), key, iv, ciphertext);
@@ -642,7 +654,16 @@ void* recvMsg(void*)
                  * Compare the calculated MAC with the MAC obtained by splitting. *
                  * If they are the same, the message has not been tampered with   * 
                  * by a third party.                                              */
-                 
+                
+                // calculate decrypted message's MAC
+		unsigned char decrypted_mac[EVP_MAX_MD_SIZE];
+                unsigned int decrypted_mac_len;
+                HMAC(EVP_sha256(), key, strlen((char*)key), plaintext, plaintext_len, decrypted_mac, &decrypted_mac_len);
+                
+                // TODO: compare MAC
+                
+                
+                        
 		if (nbytes == 0) {
 			/* signal to the main loop that we should quit: */
 			should_exit = true;
