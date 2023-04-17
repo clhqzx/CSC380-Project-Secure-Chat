@@ -97,7 +97,7 @@ int initServerNet(int port)
 	
 	const size_t klen = 128;
         /*
-	// 接收客户端发送的公钥B
+	// Receive the public key B sent by the client
         unsigned char B[klen];
         int ret = recv(sockfd, B, klen, 0);
         if(ret == -1)
@@ -106,7 +106,7 @@ int initServerNet(int port)
             return -1;
         }
 
-        // 将公钥A发送给客户端
+        // Send public key A to the client
         ret = send(sockfd, A, klen, 0);
         if(ret == -1)
         {
@@ -155,7 +155,7 @@ static int initClientNet(char* hostname, int port)
 	
 	const size_t klen = 128;
         /*
-	// 将公钥B发送给服务器
+	// Send public key B to the server
 	int ret = send(sockfd, B, klen, 0);
         if(ret == -1)
         {
@@ -163,7 +163,7 @@ static int initClientNet(char* hostname, int port)
             return -1;
         }
         
-        // 接收服务器发送的公钥A
+        // Receive the public key A from the server
         unsigned char A[klen];
         ret = recv(sockfd, A, klen, 0);
         if(ret == -1)
@@ -251,7 +251,7 @@ static void msg_win_redisplay(bool batch, const string& newmsg="", const string&
 	}
 }
 
-// 加密函数
+// Encryption functions
 int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
             unsigned char *iv, unsigned char *ciphertext) {
     EVP_CIPHER_CTX *ctx;
@@ -267,7 +267,7 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
     return ciphertext_len;
 }
 
-// 解密函数
+//  Decryption functions
 int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
             unsigned char *iv, unsigned char *plaintext) {
     EVP_CIPHER_CTX *ctx;
@@ -304,7 +304,7 @@ static void msg_typed(char *line)
                         unsigned int mac_len;
                         HMAC(EVP_sha256(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
 
-			// 加密消息
+			// Encrypted messages
 			unsigned char ciphertext[strlen(line) + EVP_MAX_BLOCK_LENGTH];
                         int ciphertext_len = encrypt((unsigned char*)line, strlen(line), key, iv, ciphertext);
                         
@@ -635,10 +635,10 @@ void* recvMsg(void*)
 		
 		
 		string ciphertext_hex(msg);
-                // 计算 ciphertext_hex 中的字节数
+                // Calculate the number of bytes in ciphertext_hex
                 size_t ciphertext_len = ciphertext_hex.length() / 2;
 
-                // 将 ciphertext_hex 转换成 unsigned char 类型的数组
+                // Convert ciphertext_hex to an array of unsigned char type
                 unsigned char ciphertext[ciphertext_len];
                 for (int i = 0; i < ciphertext_len; i++) {
                     sscanf(ciphertext_hex.substr(i*2, 2).c_str(), "%02x", &ciphertext[i]);
