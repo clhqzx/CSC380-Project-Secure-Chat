@@ -92,6 +92,37 @@ int initServerNet(int port)
 	close(listensock);
 	fprintf(stderr, "connection made, starting session...\n");
 	/* at this point, should be able to send/recv on sockfd */
+	
+	NEWZ(a); // secret key (a random exponent)
+	NEWZ(A); // public key: A = g^a mod p 
+	dhGen(a,A);
+	
+	const size_t klen = 128;
+
+	// 接收客户端发送的公钥B
+        unsigned char B[klen];
+        int ret = recv(sockfd, B, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Receive public key B failed!" << endl;
+            return -1;
+        }
+
+        // 将公钥A发送给客户端
+        ret = send(sockfd, A, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Send public key A failed!" << endl;
+            return -1;
+        }
+        
+        /* TODO: server's key derivation:                            *
+         * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
+         * B is unsigned char* here                                  */
+        /*
+        unsigned char kA[klen];
+	dhFinal(a,A,B,kA,klen);
+	*/
 	return 0;
 }
 
@@ -115,6 +146,38 @@ static int initClientNet(char* hostname, int port)
 	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
 		error("ERROR connecting");
 	/* at this point, should be able to send/recv on sockfd */
+	
+	NEWZ(b); // secret key (a random exponent)
+	NEWZ(B); // public key: B = g^b mod p
+	dhGen(b,B);
+	
+	const size_t klen = 128;
+
+	// 将公钥B发送给服务器
+	int ret = send(sockfd, B, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Send public key B failed!" << endl;
+            return -1;
+        }
+        
+        // 接收服务器发送的公钥A
+        unsigned char A[klen];
+        ret = recv(sockfd, A, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Receive public key A failed!" << endl;
+            return -1;
+        }
+        
+        /* TODO: client's key derivation:                            *
+         * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
+         * B is unsigned char* here                                  */
+        /*
+        unsigned char kB[klen];
+        dhFinal(b,B,A,kB,klen);
+        */
+        
 	return 0;
 }
 
@@ -221,6 +284,9 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 
 static void msg_typed(char *line)
 {
+        /* TODO: Use a more secure key:                        *
+         * When the Diffie-Hellman key exchange is implemented *
+         * Need to delete this hardcode key                    */
         unsigned char key[] = "01234567890123456789012345678901";
         unsigned char iv[] = "0123456789012345";
 	
@@ -241,7 +307,13 @@ static void msg_typed(char *line)
                             ss << std::hex << std::setw(2) << std::setfill('0') << (int)ciphertext[i];
                         }
                         std::string ciphertext_hex = ss.str();
-
+                        
+                        /* TODO: MAC:                                               *
+                         * Message integrity needs to be ensured.                   *
+                         * Calculate the MAC of the message before encryption.      *
+                         * Then encrypt the message. Finally, combine the encrypted * 
+                         * message and MAC. Send it.                                */
+                        
 			add_history(line);	
 			mymsg = string(line);
 			transcript.push_back("me: " + mymsg);
@@ -253,7 +325,7 @@ static void msg_typed(char *line)
 		}
 		pthread_mutex_lock(&qmx);
 		// my windows display mymsg....zhi
-		mq.push_back({false,mymsg,"me-->",msg_win});
+		mq.push_back({false,mymsg,"me",msg_win});
 		pthread_cond_signal(&qcv);
 		pthread_mutex_unlock(&qmx);
 	}
@@ -437,6 +509,11 @@ int main(int argc, char *argv[])
 				return 1;
 		}
 	}
+	
+	if (init("params") == 0) {
+		gmp_printf("Successfully read DH params");
+	}
+	
 	if (isclient) {
 		initClientNet(hostname,port);
 	} else {
@@ -531,6 +608,9 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
+        /* TODO: Use a more secure key:                        *
+         * When the Diffie-Hellman key exchange is implemented *
+         * Need to delete this hardcode key                    */
         unsigned char key[] = "01234567890123456789012345678901";
         unsigned char iv[] = "0123456789012345";
         
@@ -555,6 +635,14 @@ void* recvMsg(void*)
                 int plaintext_len = decrypt(ciphertext, ciphertext_len, key, iv, plaintext);
                 string plaintext_str(reinterpret_cast<const char*>(plaintext), plaintext_len);
 		
+		/* TODO: Compare MAC:                                             *
+                 * Message integrity needs to be ensured.                         *
+                 * Split the received combination message.                        *
+                 * Decrypt the message and calculate the MAC.                     * 
+                 * Compare the calculated MAC with the MAC obtained by splitting. *
+                 * If they are the same, the message has not been tampered with   * 
+                 * by a third party.                                              */
+                 
 		if (nbytes == 0) {
 			/* signal to the main loop that we should quit: */
 			should_exit = true;
@@ -564,7 +652,7 @@ void* recvMsg(void*)
 		pthread_mutex_lock(&qmx);
 		
 		// msg is the receive msg here....zhi
-		mq.push_back({false,plaintext_str,"Mr Thread--",msg_win});
+		mq.push_back({false,plaintext_str,"Mr Thread",msg_win});
 		pthread_cond_signal(&qcv);
 		pthread_mutex_unlock(&qmx);
 	}
