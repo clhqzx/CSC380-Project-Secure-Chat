@@ -36,6 +36,10 @@ Team members:
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
+* [Forward secrecy](https://en.wikipedia.org/wiki/Forward_secrecy)
 * [Diffie–Hellman key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
 * [How to Send Secret Messages](https://www.freecodecamp.org/news/how-to-send-secret-messages/)
 * [Message authentication code](https://en.wikipedia.org/wiki/Message_authentication_code)
+* [Network programming guide](https://beej.us/guide/bgnet/)
+* [Ncurses examples](https://tldp.org/HOWTO/NCURSES-Programming-HOWTO/)
+* [Info gmp](https://gmplib.org/manual/)
