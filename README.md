@@ -22,17 +22,48 @@ Team members:
 * Wendian Jiang
 * Xinwei Wu
 
-<!-- Team work distribution -->
-## Team work distribution
-* Xinwei Wu: Authentication of correspondents
-* Zhi Gao: Message secrecy (encryption & decryption)
-* Wendian Jiang: Message integrity (MACs)
-
 <!-- Project Progress -->
 ## Project Progress
 * Authentication of correspondents 🚧
 * Message secrecy (encryption) ✔️
 * Message integrity (MACs) ✔️
+
+<!-- GETTING STARTED -->
+## Getting Started
+
+This project was running successful on Ubuntu.
+
+### Prerequisites
+
+* ncurses and its header files. If you are on linux/BSD, you might have to get a package like ncurses-devel or similar, although some distributions (e.g. Arch Linux) will include header files in the normal package (no -devel needed).
+
+* readline and the header files (readline-devel).
+
+* openssl and headers (openssl-devel).
+
+* gmp and its header files (gmp-devel).
+
+### Installation
+
+1. Clone the repo
+   ```sh
+   git clone https://github.com/clhqzx/CSC380Project1.git
+   ```
+3. Open terminal on the file, and running make
+   ```sh
+   make
+   ```
+4. Begin to run chat, open two terminal windows
+
+   one run
+   ```js
+   ./chat -l
+   ```
+   the other one run
+   ```js
+   ./chat -c YOUR SERVER'S IP ADDRESS
+   ```
+5. Start to chat!
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
