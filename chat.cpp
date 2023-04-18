@@ -285,57 +285,50 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 
 static void msg_typed(char *line)
 {
-        /* TODO: Use a more secure key:                        *
-         * When the Diffie-Hellman key exchange is implemented *
-         * Need to delete this hardcode key                    */
-        unsigned char key[] = "01234567890123456789012345678901";
-        unsigned char iv[] = "0123456789012345";
-	
-	string mymsg;
-	if (!line) {
-		// Ctrl-D pressed on empty line
-		should_exit = true;
-		/* XXX send a "goodbye" message so other end doesn't
-		 * have to wait for timeout on recv()? */
-	} else {
-		if (*line) {
-		        // calculate MAC
-		        unsigned char mac[EVP_MAX_MD_SIZE];
-                        unsigned int mac_len;
-                        HMAC(EVP_sha256(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
+    // TODO: Use a more secure key:
+    // When the Diffie-Hellman key exchange is implemented
+    // Need to delete this hardcode key
+    unsigned char key[] = "01234567890123456789012345678901";
+    unsigned char iv[] = "0123456789012345";
 
-			// Encrypted messages
-			unsigned char ciphertext[strlen(line) + EVP_MAX_BLOCK_LENGTH];
-                        int ciphertext_len = encrypt((unsigned char*)line, strlen(line), key, iv, ciphertext);
-                        
-                        std::stringstream ss;
-                        for (int i = 0; i < ciphertext_len; i++) {
-                            ss << std::hex << std::setw(2) << std::setfill('0') << (int)ciphertext[i];
-                        }
-                        std::string ciphertext_hex = ss.str();
-                        
-                        /* TODO: MAC: need to combine mac + ciphertext              *
-                         * Message integrity needs to be ensured.                   *
-                         * Calculate the MAC of the message before encryption.      *
-                         * Then encrypt the message. Finally, combine the encrypted * 
-                         * message and MAC. Send it.                                */
-                        
-			add_history(line);	
-			mymsg = string(line);
-			transcript.push_back("me: " + mymsg);
-			ssize_t nbytes;
-			
-			// line is sent msg here....zhi
-			if ((nbytes = send(sockfd,ciphertext_hex.c_str(),ciphertext_hex.length(),0)) == -1)
-				error("send failed");
-		}
-		pthread_mutex_lock(&qmx);
-		// my windows display mymsg....zhi
-		mq.push_back({false,mymsg,"me",msg_win});
-		pthread_cond_signal(&qcv);
-		pthread_mutex_unlock(&qmx);
-	}
+    if (!line) {
+        // Ctrl-D pressed on empty line
+        should_exit = true;
+        /* XXX send a "goodbye" message so other end doesn't
+         * have to wait for timeout on recv()? */
+    } else {
+        if (*line) {
+            // Calculate MAC
+            unsigned char mac[EVP_MAX_MD_SIZE];
+            unsigned int mac_len;
+            HMAC(EVP_sha256(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
+
+            // Encrypt message
+            unsigned char ciphertext[strlen(line) + EVP_MAX_BLOCK_LENGTH];
+            int ciphertext_len = encrypt((unsigned char*)line, strlen(line), key, iv, ciphertext);
+            
+            // Combine MAC and encrypted message
+            unsigned char msg[ciphertext_len + mac_len];
+            memcpy(msg, mac, mac_len);
+            memcpy(msg + mac_len, ciphertext, ciphertext_len);
+
+            // Send message
+            ssize_t nbytes;
+            if ((nbytes = send(sockfd, msg, ciphertext_len + mac_len, 0)) == -1)
+                error("send failed");
+
+            add_history(line);
+            std::string mymsg(line);
+            transcript.push_back("me: " + mymsg);
+            
+            pthread_mutex_lock(&qmx);
+            mq.push_back({false,mymsg,"me",msg_win});
+            pthread_cond_signal(&qcv);
+            pthread_mutex_unlock(&qmx);
+        }
+    }
 }
+
 
 /* if batch is set, don't draw immediately to real screen (use wnoutrefresh
  * instead of wrefresh) */
@@ -614,68 +607,69 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-        /* TODO: Use a more secure key:                        *
-         * When the Diffie-Hellman key exchange is implemented *
-         * Need to delete this hardcode key                    */
-        unsigned char key[] = "01234567890123456789012345678901";
-        unsigned char iv[] = "0123456789012345";
-        
-	size_t maxlen = 256;
-	char msg[maxlen+1];
-	ssize_t nbytes;
-	while (1) {            
-		if ((nbytes = recv(sockfd,msg,maxlen,0)) == -1)
-			error("recv failed");
-		msg[nbytes] = 0; /* make sure it is null-terminated */
-		
-		// TODO: after receive the combine (mac + message)
-		//       need to split it
-		//       one is ciphertext, need to decrypt and cal mac
-		//       the other one is mac
-		
-		
-		string ciphertext_hex(msg);
-                // Calculate the number of bytes in ciphertext_hex
-                size_t ciphertext_len = ciphertext_hex.length() / 2;
+    /* TODO: Use a more secure key:                        *
+     * When the Diffie-Hellman key exchange is implemented *
+     * Need to delete this hardcode key                    */
+    unsigned char key[] = "01234567890123456789012345678901";
+    unsigned char iv[] = "0123456789012345";
 
-                // Convert ciphertext_hex to an array of unsigned char type
-                unsigned char ciphertext[ciphertext_len];
-                for (int i = 0; i < ciphertext_len; i++) {
-                    sscanf(ciphertext_hex.substr(i*2, 2).c_str(), "%02x", &ciphertext[i]);
-                }
-                unsigned char plaintext[maxlen];
-                int plaintext_len = decrypt(ciphertext, ciphertext_len, key, iv, plaintext);
-                string plaintext_str(reinterpret_cast<const char*>(plaintext), plaintext_len);
-		
-		/* TODO: Compare MAC:                                             *
-                 * Message integrity needs to be ensured.                         *
-                 * Split the received combination message.                        *
-                 * Decrypt the message and calculate the MAC.                     * 
-                 * Compare the calculated MAC with the MAC obtained by splitting. *
-                 * If they are the same, the message has not been tampered with   * 
-                 * by a third party.                                              */
-                
-                // calculate decrypted message's MAC
-		unsigned char decrypted_mac[EVP_MAX_MD_SIZE];
-                unsigned int decrypted_mac_len;
-                HMAC(EVP_sha256(), key, strlen((char*)key), plaintext, plaintext_len, decrypted_mac, &decrypted_mac_len);
-                
-                // TODO: compare MAC
-                
-                
-                        
-		if (nbytes == 0) {
-			/* signal to the main loop that we should quit: */
-			should_exit = true;
-			return 0;
-		}
-		
-		pthread_mutex_lock(&qmx);
-		
-		// msg is the receive msg here....zhi
-		mq.push_back({false,plaintext_str,"Mr Thread",msg_win});
-		pthread_cond_signal(&qcv);
-		pthread_mutex_unlock(&qmx);
-	}
-	return 0;
+    size_t maxlen = 256;
+    char msg[maxlen+1];
+    ssize_t nbytes;
+    while (1) {
+        if ((nbytes = recv(sockfd,msg,maxlen,0)) == -1)
+            error("recv failed");
+        msg[nbytes] = 0; /* make sure it is null-terminated */
+
+        // Split the received message into ciphertext and MAC
+        string combined_msg(msg);
+        string ciphertext_hex = combined_msg.substr(0, combined_msg.length() - EVP_MAX_MD_SIZE * 2);
+        string mac_hex = combined_msg.substr(combined_msg.length() - EVP_MAX_MD_SIZE * 2);
+
+        // Convert ciphertext_hex to an array of unsigned char type
+        size_t ciphertext_len = ciphertext_hex.length() / 2;
+        unsigned char ciphertext[ciphertext_len];
+        for (int i = 0; i < ciphertext_len; i++) {
+            sscanf(ciphertext_hex.substr(i*2, 2).c_str(), "%02x", &ciphertext[i]);
+        }
+
+        // Decrypt the ciphertext to obtain the plaintext message
+        unsigned char plaintext[maxlen];
+        int plaintext_len = decrypt(ciphertext, ciphertext_len, key, iv, plaintext);
+        string plaintext_str(reinterpret_cast<const char*>(plaintext), plaintext_len);
+
+        // Calculate the MAC of the decrypted plaintext message
+        unsigned char decrypted_mac[EVP_MAX_MD_SIZE];
+        unsigned int decrypted_mac_len;
+        HMAC(EVP_sha256(), key, strlen((char*)key), plaintext, plaintext_len, decrypted_mac, &decrypted_mac_len);
+
+        // Convert the received MAC from hex to an array of unsigned char type
+        unsigned char received_mac[EVP_MAX_MD_SIZE];
+        size_t mac_len = mac_hex.length() / 2;
+        for (int i = 0; i < mac_len; i++) {
+            sscanf(mac_hex.substr(i*2, 2).c_str(), "%02x", &received_mac[i]);
+        }
+
+        // Compare the received MAC with the calculated MAC to ensure message integrity
+        if (memcmp(received_mac, decrypted_mac, EVP_MAX_MD_SIZE) == 0) {
+            // The message has not been tampered with by a third party
+            pthread_mutex_lock(&qmx);
+
+            // msg is the received message here....zhi
+            mq.push_back({false,plaintext_str,"Mr Thread",msg_win});
+            pthread_cond_signal(&qcv);
+            pthread_mutex_unlock(&qmx);
+        } else {
+            // The message has been tampered with by a third party
+            cerr << "Received message has been tampered with!" << endl;
+        }
+
+        if (nbytes == 0) {
+            /* signal to the main loop that we should quit: */
+            should_exit = true;
+            return 0;
+        }
+    }
+    return 0;
 }
+
