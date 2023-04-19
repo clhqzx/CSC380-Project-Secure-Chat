@@ -253,6 +253,9 @@ static void msg_typed(char *line)
                  * have to wait for timeout on recv()? */
         } else {
                 if (*line) {
+                        /* Calculate the message's MAC and encrypt *
+                         * the message and send it in combination  */
+                         
                         // Calculate the MAC of a message
                         unsigned char mac[EVP_MAX_MD_SIZE];
                         unsigned int mac_len;
@@ -583,6 +586,9 @@ void* recvMsg(void*)
             error("recv failed");
         msg[nbytes] = 0; /* make sure it is null-terminated */
 
+        /* Split the received combined message  * 
+         * compare MACs and decrypt the message */
+         
         // Split the received combination message
         string combined(msg);
         string mac_str = combined.substr(0, 64);  // MAC is the first 64 characters
@@ -611,14 +617,18 @@ void* recvMsg(void*)
         }
         string mac_calc = stream.str();
         
-        // Compare MAC
+        // Compare MACs
         if (mac_calc == mac_str) {
             pthread_mutex_lock(&qmx);
             mq.push_back({false, plaintext_str, "Mr Thread", msg_win});
             pthread_cond_signal(&qcv);
             pthread_mutex_unlock(&qmx);
         } else {
-            cout << "Message has been tampered with!" << endl;
+            string msg = "Message has been tampered with!";
+            pthread_mutex_lock(&qmx);
+            mq.push_back({false, msg, "Mr Thread", msg_win});
+            pthread_cond_signal(&qcv);
+            pthread_mutex_unlock(&qmx);
         }
 
         if (nbytes == 0) {
@@ -629,5 +639,4 @@ void* recvMsg(void*)
     }
     return 0;
 }
-
 
