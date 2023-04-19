@@ -99,6 +99,42 @@ int initServerNet(int port)
         char ack_packet[1024];
         recv(sockfd, ack_packet, sizeof(ack_packet), 0);
 	
+	
+	/* Diffie–Hellman key exchange */
+	/* TODO: server's key derivation: */
+	init("params");
+	NEWZ(a); // secret key (a random exponent)
+	NEWZ(A); // public key: A = g^a mod p 
+	dhGen(a,A);
+	
+	const size_t klen = 128;
+        /*
+	// Receive the public key B sent by the client
+        unsigned char B[klen];
+        int ret = recv(sockfd, B, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Receive public key B failed!" << endl;
+            return -1;
+        }
+        // Send public key A to the client
+        ret = send(sockfd, A, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Send public key A failed!" << endl;
+            return -1;
+        }
+        */
+        
+        /*
+        mpz_t B_mpz;
+        mpz_init(B_mpz);
+        mpz_import(B_mpz, klen, 1, sizeof(unsigned char), 0, 0, B);
+        
+        unsigned char kA[klen];
+	dhFinal(a,A,B_mpz,kA,klen);
+	*/
+	
 	close(listensock);
 	fprintf(stderr, "connection made, starting session...\n");
 	/* at this point, should be able to send/recv on sockfd */
@@ -138,6 +174,44 @@ static int initClientNet(char* hostname, int port)
         // Third handshake: client sends ACK packet
         char ack_packet[] = "ACK";
         send(sockfd, ack_packet, sizeof(ack_packet), 0);	
+	
+	
+	/* Diffie–Hellman key exchange */
+	/* TODO: client's key derivation: */
+	init("params");
+	NEWZ(b); // secret key (a random exponent)
+	NEWZ(B); // public key: B = g^b mod p
+	dhGen(b,B);
+	
+	const size_t klen = 128;
+        /*
+	// Send public key B to the server
+	int ret = send(sockfd, B, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Send public key B failed!" << endl;
+            return -1;
+        }
+        
+        // Receive the public key A from the server
+        unsigned char A[klen];
+        ret = recv(sockfd, A, klen, 0);
+        if(ret == -1)
+        {
+            cout << "Receive public key A failed!" << endl;
+            return -1;
+        }
+        */
+        
+        /*
+        mpz_t A_mpz;
+        mpz_init(A_mpz);
+        mpz_import(A_mpz, klen, 1, sizeof(unsigned char), 0, 0, A);
+        
+        unsigned char kB[klen];
+        dhFinal(b,B,A_mpz,kB,klen);
+        */
+	
 	
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
@@ -475,10 +549,6 @@ int main(int argc, char *argv[])
 				printf(usage,argv[0]);
 				return 1;
 		}
-	}
-	
-	if (init("params") == 0) {
-		gmp_printf("Successfully read DH params");
 	}
 	
 	if (isclient) {
