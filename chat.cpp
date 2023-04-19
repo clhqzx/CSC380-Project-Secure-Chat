@@ -84,44 +84,24 @@ int initServerNet(int port)
 	sockfd = accept(listensock, (struct sockaddr *) &cli_addr, &clilen);
 	if (sockfd < 0)
 		error("error on accept");
+	
+	/* three-way handshake */
+	
+	// First handshake: client sends SYN packet
+        char syn_packet[1024];
+        recv(sockfd, syn_packet, sizeof(syn_packet), 0);
+
+        // Second handshake: server sends SYN and ACK packets
+        char syn_ack_packet[] = "SYN+ACK";
+        send(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+
+        // Third handshake: client sends ACK packet
+        char ack_packet[1024];
+        recv(sockfd, ack_packet, sizeof(ack_packet), 0);
+	
 	close(listensock);
 	fprintf(stderr, "connection made, starting session...\n");
 	/* at this point, should be able to send/recv on sockfd */
-	
-	NEWZ(a); // secret key (a random exponent)
-	NEWZ(A); // public key: A = g^a mod p 
-	dhGen(a,A);
-	
-	const size_t klen = 128;
-        /*
-	// Receive the public key B sent by the client
-        unsigned char B[klen];
-        int ret = recv(sockfd, B, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Receive public key B failed!" << endl;
-            return -1;
-        }
-
-        // Send public key A to the client
-        ret = send(sockfd, A, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Send public key A failed!" << endl;
-            return -1;
-        }
-        */
-        /* TODO: server's key derivation:                            *
-         * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
-         * B is unsigned char* here                                  */
-        /*
-        mpz_t B_mpz;
-        mpz_init(B_mpz);
-        mpz_import(B_mpz, klen, 1, sizeof(unsigned char), 0, 0, B);
-        
-        unsigned char kA[klen];
-	dhFinal(a,A,B_mpz,kA,klen);
-	*/
 	return 0;
 }
 
@@ -144,42 +124,22 @@ static int initClientNet(char* hostname, int port)
 	serv_addr.sin_port = htons(port);
 	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
 		error("ERROR connecting");
+	
+	/* three-way handshake */
+	
+	// First handshake: client sends SYN packet
+        char syn_packet[] = "SYN";
+        send(sockfd, syn_packet, sizeof(syn_packet), 0);
+
+        // Second handshake: server sends SYN and ACK packets
+        char syn_ack_packet[1024];
+        recv(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+
+        // Third handshake: client sends ACK packet
+        char ack_packet[] = "ACK";
+        send(sockfd, ack_packet, sizeof(ack_packet), 0);	
+	
 	/* at this point, should be able to send/recv on sockfd */
-	
-	NEWZ(b); // secret key (a random exponent)
-	NEWZ(B); // public key: B = g^b mod p
-	dhGen(b,B);
-	
-	const size_t klen = 128;
-        /*
-	// Send public key B to the server
-	int ret = send(sockfd, B, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Send public key B failed!" << endl;
-            return -1;
-        }
-        
-        // Receive the public key A from the server
-        unsigned char A[klen];
-        ret = recv(sockfd, A, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Receive public key A failed!" << endl;
-            return -1;
-        }
-        */
-        /* TODO: client's key derivation:                            *
-         * error: cannot convert ‘unsigned char*’ to ‘__mpz_struct*’ *
-         * B is unsigned char* here                                  */
-        /*
-        mpz_t A_mpz;
-        mpz_init(A_mpz);
-        mpz_import(A_mpz, klen, 1, sizeof(unsigned char), 0, 0, A);
-        
-        unsigned char kB[klen];
-        dhFinal(b,B,A_mpz,kB,klen);
-        */
 	return 0;
 }
 
