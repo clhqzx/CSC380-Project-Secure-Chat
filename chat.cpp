@@ -655,7 +655,13 @@ void* recvMsg(void*)
         if ((nbytes = recv(sockfd,msg,maxlen,0)) == -1)
             error("recv failed");
         msg[nbytes] = 0; /* make sure it is null-terminated */
-
+        
+        if (nbytes == 0) {
+            // Signal to the main loop that we should quit
+            should_exit = true;
+            return 0;
+        }
+        
         /* Split the received combined message  * 
          * compare MACs and decrypt the message */
          
@@ -700,13 +706,6 @@ void* recvMsg(void*)
             pthread_cond_signal(&qcv);
             pthread_mutex_unlock(&qmx);
         }
-
-        if (nbytes == 0) {
-            // Signal to the main loop that we should quit
-            should_exit = true;
-            return 0;
-        }
     }
     return 0;
 }
-
