@@ -23,7 +23,10 @@
 
 using namespace std;
 
-
+unsigned char key[] = "01234567890123456789012345678901";
+unsigned char iv[] = "0123456789012345";
+mpz_t A;
+mpz_t B;
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
 static pthread_t tcurses;   /* setup curses and draw messages from queue */
@@ -85,12 +88,13 @@ int initServerNet(int port)
 	if (sockfd < 0)
 		error("error on accept");
 	
+	
 	/* three-way handshake */
 	
 	// First handshake: client sends SYN packet
         char syn_packet[1024];
         recv(sockfd, syn_packet, sizeof(syn_packet), 0);
-
+        
         // Second handshake: server sends SYN and ACK packets
         char syn_ack_packet[] = "SYN+ACK";
         send(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
@@ -99,44 +103,39 @@ int initServerNet(int port)
         char ack_packet[1024];
         recv(sockfd, ack_packet, sizeof(ack_packet), 0);
 	
+	close(listensock);
+	fprintf(stderr, "connection made, starting session...\n");
 	
 	/* Diffie–Hellman key exchange */
-	/* TODO: server's key derivation: */
+	
 	init("params");
 	NEWZ(a); // secret key (a random exponent)
 	NEWZ(A); // public key: A = g^a mod p 
 	dhGen(a,A);
 	
-	const size_t klen = 128;
-        /*
+	// Send public key A to the client
+	char A_str[1024];	
+	mpz_get_str(A_str, 16, A);
+	send(sockfd, A_str, 1024, 0);
+
 	// Receive the public key B sent by the client
-        unsigned char B[klen];
-        int ret = recv(sockfd, B, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Receive public key B failed!" << endl;
-            return -1;
-        }
-        // Send public key A to the client
-        ret = send(sockfd, A, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Send public key A failed!" << endl;
-            return -1;
-        }
-        */
-        
-        /*
-        mpz_t B_mpz;
-        mpz_init(B_mpz);
-        mpz_import(B_mpz, klen, 1, sizeof(unsigned char), 0, 0, B);
-        
-        unsigned char kA[klen];
-	dhFinal(a,A,B_mpz,kA,klen);
-	*/
+	char B_str[1024];
+	recv(sockfd, B_str, 1024, 0);
+	mpz_set_str(B, B_str, 16);
+
+        // Server's key derivation
+        const size_t klen = 128;
+	unsigned char kA[klen];
+	dhFinal(a, A, B, kA, klen);
 	
-	close(listensock);
-	fprintf(stderr, "connection made, starting session...\n");
+	printf("Server's key:\n");
+	for (size_t i = 0; i < klen; i++) {
+		printf("%02x ",kA[i]);
+	}
+	printf("\n");
+	
+	/* TODO: GOT SAME KEY, NEED TO USE THIS KEY TO DO SOMETHING */
+		
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
 }
@@ -166,7 +165,7 @@ static int initClientNet(char* hostname, int port)
 	// First handshake: client sends SYN packet
         char syn_packet[] = "SYN";
         send(sockfd, syn_packet, sizeof(syn_packet), 0);
-
+        
         // Second handshake: server sends SYN and ACK packets
         char syn_ack_packet[1024];
         recv(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
@@ -177,42 +176,35 @@ static int initClientNet(char* hostname, int port)
 	
 	
 	/* Diffie–Hellman key exchange */
-	/* TODO: client's key derivation: */
+
 	init("params");
 	NEWZ(b); // secret key (a random exponent)
 	NEWZ(B); // public key: B = g^b mod p
 	dhGen(b,B);
 	
-	const size_t klen = 128;
-        /*
+	// Receive the public key A from the server
+	char A_str[1024];
+	recv(sockfd, A_str, 1024, 0);
+	mpz_set_str(A, A_str, 16);
+
 	// Send public key B to the server
-	int ret = send(sockfd, B, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Send public key B failed!" << endl;
-            return -1;
-        }
+	char B_str[1024];
+	mpz_get_str(B_str, 16, B);
+	send(sockfd, B_str, 1024, 0);
+
+	// Client's key derivation
+	const size_t klen = 128;
+	unsigned char kA[klen];
+	dhFinal(b, B, A, kA, klen);
         
-        // Receive the public key A from the server
-        unsigned char A[klen];
-        ret = recv(sockfd, A, klen, 0);
-        if(ret == -1)
-        {
-            cout << "Receive public key A failed!" << endl;
-            return -1;
-        }
-        */
-        
-        /*
-        mpz_t A_mpz;
-        mpz_init(A_mpz);
-        mpz_import(A_mpz, klen, 1, sizeof(unsigned char), 0, 0, A);
-        
-        unsigned char kB[klen];
-        dhFinal(b,B,A_mpz,kB,klen);
-        */
+        printf("Client's key:\n");
+	for (size_t i = 0; i < klen; i++) {
+		printf("%02x ",kA[i]);
+	}
+	printf("\n");
 	
-	
+	/* TODO: GOT SAME KEY, NEED TO USE THIS KEY TO DO SOMETHING */
+
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
 }
@@ -315,10 +307,7 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 }
 
 static void msg_typed(char *line)
-{
-        unsigned char key[] = "01234567890123456789012345678901";
-        unsigned char iv[] = "0123456789012345";
-        
+{   
         string mymsg;
         if (!line) {
                 // Ctrl-D pressed on empty line
@@ -528,7 +517,7 @@ int main(int argc, char *argv[])
 	char hostname[HOST_NAME_MAX+1] = "localhost";
 	hostname[HOST_NAME_MAX] = 0;
 	bool isclient = true;
-	
+
 
 	while ((c = getopt_long(argc, argv, "c:lp:h", long_opts, &opt_index)) != -1) {
 		switch (c) {
@@ -645,9 +634,6 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-    unsigned char key[] = "01234567890123456789012345678901";
-    unsigned char iv[] = "0123456789012345";
-
     size_t maxlen = 256;
     char msg[maxlen+1];
     ssize_t nbytes;
