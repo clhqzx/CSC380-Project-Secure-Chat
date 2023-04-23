@@ -23,10 +23,12 @@
 
 using namespace std;
 
-unsigned char key[] = "01234567890123456789012345678901";
-unsigned char iv[] = "0123456789012345";
+unsigned char key[128];
+unsigned char iv[64];
 mpz_t A;
 mpz_t B;
+mpz_t C;
+mpz_t D;
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
 static pthread_t tcurses;   /* setup curses and draw messages from queue */
@@ -103,9 +105,6 @@ int initServerNet(int port)
         char ack_packet[1024];
         recv(sockfd, ack_packet, sizeof(ack_packet), 0);
 	
-	close(listensock);
-	fprintf(stderr, "connection made, starting session...\n");
-	
 	/* Diffie–Hellman key exchange */
 	
 	init("params");
@@ -134,8 +133,39 @@ int initServerNet(int port)
 	}
 	printf("\n");
 	
-	/* TODO: GOT SAME KEY, NEED TO USE THIS KEY TO DO SOMETHING */
-		
+	memcpy(key, kA, klen);
+	
+	/* Generate another shared key and use that key as the IV */
+	
+        NEWZ(c); // secret key (c random exponent)
+	NEWZ(C); // public key: C = g^c mod p 
+	dhGen(c,C);
+	
+	// Send public key C to the client
+	char C_str[1024];	
+	mpz_get_str(C_str, 16, C);
+	send(sockfd, C_str, 1024, 0);
+
+	// Receive the public key D sent by the client
+	char D_str[1024];
+	recv(sockfd, D_str, 1024, 0);
+	mpz_set_str(D, D_str, 16);
+
+        // Server's key derivation
+        const size_t klen1 = 64;
+	unsigned char kC[klen1];
+	dhFinal(c, C, D, kC, klen1);
+	
+	printf("Server's IV:\n");
+	for (size_t i = 0; i < klen1; i++) {
+		printf("%02x ",kC[i]);
+	}
+	printf("\n");
+	
+	memcpy(iv, kC, klen1);
+	
+	close(listensock);
+	fprintf(stderr, "connection made, starting session...\n");
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
 }
@@ -194,16 +224,45 @@ static int initClientNet(char* hostname, int port)
 
 	// Client's key derivation
 	const size_t klen = 128;
-	unsigned char kA[klen];
-	dhFinal(b, B, A, kA, klen);
+	unsigned char kB[klen];
+	dhFinal(b, B, A, kB, klen);
         
         printf("Client's key:\n");
 	for (size_t i = 0; i < klen; i++) {
-		printf("%02x ",kA[i]);
+		printf("%02x ",kB[i]);
 	}
 	printf("\n");
 	
-	/* TODO: GOT SAME KEY, NEED TO USE THIS KEY TO DO SOMETHING */
+	memcpy(key, kB, klen);
+	
+	/* Generate another shared key and use that key as the IV */
+	
+	NEWZ(d); // secret key (d random exponent)
+	NEWZ(D); // public key: D = g^d mod p
+	dhGen(d,D);
+	
+	// Receive the public key C from the server
+	char C_str[1024];
+	recv(sockfd, C_str, 1024, 0);
+	mpz_set_str(C, C_str, 16);
+
+	// Send public key D to the server
+	char D_str[1024];
+	mpz_get_str(D_str, 16, D);
+	send(sockfd, D_str, 1024, 0);
+
+	// Client's key derivation
+	const size_t klen1 = 64;
+	unsigned char kD[klen1];
+	dhFinal(d, D, C, kD, klen1);
+        
+        printf("Client's IV:\n");
+	for (size_t i = 0; i < klen1; i++) {
+		printf("%02x ",kD[i]);
+	}
+	printf("\n");
+	
+	memcpy(iv, kD, klen1);
 
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
