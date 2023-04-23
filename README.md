@@ -24,7 +24,7 @@ Team members:
 
 <!-- Project Progress -->
 ## Project Progress
-* Authentication of correspondents 🚧
+* Authentication of correspondents ✔️
 * Message secrecy (encryption) ✔️
 * Message integrity (MACs) ✔️
 
@@ -47,27 +47,28 @@ This project was running successful on Ubuntu.
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/clhqzx/CSC380Project1.git
+   $ git clone https://github.com/clhqzx/CSC380Project1.git
    ```
-3. Open terminal on the file, and running make
+3. Open terminal on the file, and run makefile
    ```sh
-   make
+   $ make
    ```
-4. Begin to run chat, open two terminal windows
+4. Begin to start chat, open two terminal windows
 
    one run
    ```js
-   ./chat -l
+   $ ./chat -l
    ```
    the other one run
    ```js
-   ./chat -c YOUR SERVER'S IP ADDRESS
+   $ ./chat -c YOUR SERVER'S IP ADDRESS
    ```
-5. Start to chat!
+5. Chat!
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 * [Forward secrecy](https://en.wikipedia.org/wiki/Forward_secrecy)
+* [Three-Way Handshake](https://www.techopedia.com/definition/10339/three-way-handshake)
 * [Diffie–Hellman key exchange](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange)
 * [How to Send Secret Messages](https://www.freecodecamp.org/news/how-to-send-secret-messages/)
 * [Message authentication code](https://en.wikipedia.org/wiki/Message_authentication_code)
