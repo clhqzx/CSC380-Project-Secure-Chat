@@ -23,8 +23,8 @@
 
 using namespace std;
 
-unsigned char key[128];
-unsigned char iv[64];
+unsigned char key[256];
+unsigned char iv[256];
 mpz_t A;
 mpz_t B;
 mpz_t C;
@@ -123,7 +123,7 @@ int initServerNet(int port)
 	mpz_set_str(B, B_str, 16);
 
         // Server's key derivation
-        const size_t klen = 128;
+        const size_t klen = 256;
 	unsigned char kA[klen];
 	dhFinal(a, A, B, kA, klen);
 	
@@ -152,7 +152,7 @@ int initServerNet(int port)
 	mpz_set_str(D, D_str, 16);
 
         // Server's key derivation
-        const size_t klen1 = 64;
+        const size_t klen1 = 256;
 	unsigned char kC[klen1];
 	dhFinal(c, C, D, kC, klen1);
 	
@@ -223,7 +223,7 @@ static int initClientNet(char* hostname, int port)
 	send(sockfd, B_str, 1024, 0);
 
 	// Client's key derivation
-	const size_t klen = 128;
+	const size_t klen = 256;
 	unsigned char kB[klen];
 	dhFinal(b, B, A, kB, klen);
         
@@ -252,7 +252,7 @@ static int initClientNet(char* hostname, int port)
 	send(sockfd, D_str, 1024, 0);
 
 	// Client's key derivation
-	const size_t klen1 = 64;
+	const size_t klen1 = 256;
 	unsigned char kD[klen1];
 	dhFinal(d, D, C, kD, klen1);
         
@@ -381,7 +381,7 @@ static void msg_typed(char *line)
                         // Calculate the MAC of a message
                         unsigned char mac[EVP_MAX_MD_SIZE];
                         unsigned int mac_len;
-                        HMAC(EVP_sha256(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
+                        HMAC(EVP_sha512(), key, strlen((char*)key), (unsigned char*)line, strlen(line), mac, &mac_len);
                         
                         // Encrypt message
                         unsigned char ciphertext[strlen(line) + EVP_MAX_BLOCK_LENGTH];
@@ -693,7 +693,7 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-    size_t maxlen = 256;
+    size_t maxlen = 512;
     char msg[maxlen+1];
     ssize_t nbytes;
     while (1) {            
@@ -712,8 +712,8 @@ void* recvMsg(void*)
          
         // Split the received combination message
         string combined(msg);
-        string mac_str = combined.substr(0, 64);  // MAC is the first 64 characters
-        string ciphertext_hex = combined.substr(64);
+        string mac_str = combined.substr(0, 128);  // MAC is the first 128 characters
+        string ciphertext_hex = combined.substr(128);
         
         // Convert the ciphertext to unsigned char array
         size_t ciphertext_len = ciphertext_hex.length() / 2;
@@ -730,13 +730,24 @@ void* recvMsg(void*)
         // Calculate the MAC of the decrypted message
         unsigned char decrypted_mac[EVP_MAX_MD_SIZE];
         unsigned int decrypted_mac_len;
-        HMAC(EVP_sha256(), key, strlen((char*)key), plaintext, plaintext_len, decrypted_mac, &decrypted_mac_len);
+        HMAC(EVP_sha512(), key, strlen((char*)key), plaintext, plaintext_len, decrypted_mac, &decrypted_mac_len);
 
         stringstream stream;
         for (int i = 0; i < decrypted_mac_len; i++) {
             stream << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(decrypted_mac[i]);
         }
         string mac_calc = stream.str();
+        
+        /* A known bug                                     */
+        /* The first message received may indicate that    */
+        /* Message has been tampered with!                 */
+        
+        /* Frequency: Occasionally, not every time.        */
+        /* Solution: Send a message to the other party.    */
+        /* If this warning continues prompt, it means that */
+        /* both parties are not using the same shared key. */
+        
+        /* TODO: fix this known bug */
         
         // Compare MACs
         if (mac_calc == mac_str) {
@@ -745,9 +756,9 @@ void* recvMsg(void*)
             pthread_cond_signal(&qcv);
             pthread_mutex_unlock(&qmx);
         } else {
-            string msg = "Message has been tampered with!";
+            string msg = "Message has been tampered with! This is a known bug, please send a message to the other party.";
             pthread_mutex_lock(&qmx);
-            mq.push_back({false, msg, "Mr Thread", msg_win});
+            mq.push_back({false, msg, "Warning", msg_win});
             pthread_cond_signal(&qcv);
             pthread_mutex_unlock(&qmx);
         }
