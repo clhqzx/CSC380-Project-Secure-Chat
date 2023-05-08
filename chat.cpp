@@ -93,18 +93,47 @@ int initServerNet(int port)
 	
 	/* three-way handshake */
 	
-	// First handshake: client sends SYN packet
-        char syn_packet[1024];
-        recv(sockfd, syn_packet, sizeof(syn_packet), 0);
-        
-        // Second handshake: server sends SYN and ACK packets
-        char syn_ack_packet[] = "SYN+ACK";
-        send(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+ 	// First handshake: client sends SYN packet
+ 	char syn_packet[1024];
+  	ssize_t n = recv(sockfd, syn_packet, sizeof(syn_packet), 0);
+  	if (n < 0) {
+ 		error("ERROR receiving SYN packet");
+ 	} else if (n == 0) {
+ 		error("Connection closed by client");
+  	} else {
+  	        if (strcmp(syn_packet, "SYN") != 0) {
+   	        	error("Invalid SYN packet received");
+    	        } else {
+      	        	printf("Received SYN packet from client\n");
+     	        }
+   	}
 
-        // Third handshake: client sends ACK packet
-        char ack_packet[1024];
-        recv(sockfd, ack_packet, sizeof(ack_packet), 0);
+    	// Second handshake: server sends SYN and ACK packets
+   	char syn_ack_packet[1024];
+   	strcpy(syn_ack_packet, "SYN+ACK");
+  	n = send(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+  	if (n < 0) {
+  		error("ERROR sending SYN+ACK packet");
+  	} else {
+  		printf("Sent SYN+ACK packet to client\n");
+  	}
+
+   	// Third handshake: client sends ACK packet
+   	char ack_packet[1024];
+  	n = recv(sockfd, ack_packet, sizeof(ack_packet), 0);
+ 	if (n < 0) {
+    		error("ERROR receiving ACK packet");
+   	} else if (n == 0) {
+  		error("Connection closed by client");
+   	} else {
+   		if (strcmp(ack_packet, "ACK") != 0) {
+   	        	error("Invalid ACK packet received");
+   	        } else {
+    	        	printf("Received ACK packet from client\n");
+    	        }
+  	}
 	
+    
 	/* Diffie–Hellman key exchange */
 	
 	init("params");
@@ -190,21 +219,46 @@ static int initClientNet(char* hostname, int port)
 	if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
 		error("ERROR connecting");
 	
+	
 	/* three-way handshake */
 	
-	// First handshake: client sends SYN packet
-        char syn_packet[] = "SYN";
-        send(sockfd, syn_packet, sizeof(syn_packet), 0);
-        
+
+    	// First handshake: client sends SYN packet
+    	char syn_packet[] = "SYN";
+    	ssize_t n = send(sockfd, syn_packet, sizeof(syn_packet), 0);
+        if (n < 0) {
+        	error("ERROR sending SYN packet");
+        } else {
+        	printf("Sent SYN packet to server\n");
+        }
+
         // Second handshake: server sends SYN and ACK packets
         char syn_ack_packet[1024];
-        recv(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+        n = recv(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
+        if (n < 0) {
+        	error("ERROR receiving SYN+ACK packet");
+        } else if (n == 0) {
+        	error("Connection closed by server");
+        } else {
+               // Check if received packet is valid SYN+ACK
+               if (strcmp(syn_ack_packet, "SYN+ACK") != 0) {
+               		error("Invalid SYN+ACK packet received");
+               } else {
+               		printf("Received SYN+ACK packet from server\n");
+               }
+        }
+           
 
         // Third handshake: client sends ACK packet
         char ack_packet[] = "ACK";
-        send(sockfd, ack_packet, sizeof(ack_packet), 0);	
-	
-	
+        n = send(sockfd, ack_packet, sizeof(ack_packet), 0);
+        if (n < 0) {
+        	error("ERROR sending ACK packet");
+        } else {
+        	printf("Sent ACK packet to server\n");
+        }
+
+        
 	/* Diffie–Hellman key exchange */
 
 	init("params");
