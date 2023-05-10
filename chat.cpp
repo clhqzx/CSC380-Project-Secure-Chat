@@ -27,8 +27,6 @@ unsigned char key[256];
 unsigned char iv[256];
 mpz_t A;
 mpz_t B;
-mpz_t C;
-mpz_t D;
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
 static pthread_t tcurses;   /* setup curses and draw messages from queue */
@@ -94,6 +92,7 @@ int initServerNet(int port)
 	/* three-way handshake */
 
 	// First handshake: client sends SYN packet
+	int rand_num;
 	char syn_packet[1024];
 	ssize_t n = recv(sockfd, syn_packet, sizeof(syn_packet), 0);
 	if (n < 0) {
@@ -102,40 +101,43 @@ int initServerNet(int port)
     		error("Connection closed by client");
 	} else {
     		// Check if received packet is valid SYN
-    		int rand_num = atoi(syn_packet);
+    		rand_num = atoi(syn_packet);
     		if (rand_num == 0) {
         		error("Invalid SYN packet received");
     		} else {
         		printf("Received SYN packet from client: %d\n", rand_num);
-        		
-        		// Second handshake: server sends SYN and ACK packets
-			char syn_ack_packet[1024];
-			sprintf(syn_ack_packet, "SYN+ACK:%d", rand_num + 1);
-			n = send(sockfd, syn_ack_packet, strlen(syn_ack_packet), 0);
-			if (n < 0) {
-    				error("ERROR sending SYN+ACK packet");
-			} else {
-    				printf("Sent SYN+ACK packet to client: %d\n", rand_num + 1);
-    				
-    				// Third handshake: client sends ACK packet
-				char ack_packet[1024];
-				n = recv(sockfd, ack_packet, sizeof(ack_packet), 0);
-				if (n < 0) {
-    					error("ERROR receiving ACK packet");
-				} else if (n == 0) {
-    					error("Connection closed by client");
-				} else {
-    					// Check if received packet is valid ACK
-    					int ack_num = atoi(ack_packet);
-    					if (ack_num != rand_num + 2) {
-        					error("Invalid ACK packet received");
-    					} else {
-        					printf("Received ACK packet from client: %d\n", ack_num);
-    					}
-				}
-			}
+        	}
+        }
+        
+        // Second handshake: server sends SYN and ACK packets
+	char syn_ack_packet[1024];
+	sprintf(syn_ack_packet, "SYN+ACK:%d", rand_num + 1);
+	n = send(sockfd, syn_ack_packet, strlen(syn_ack_packet), 0);
+	if (n < 0) {
+    		error("ERROR sending SYN+ACK packet");
+	} else {
+    		printf("Sent SYN+ACK packet to client: %d\n", rand_num + 1);
+    	}
+    	
+    	// Third handshake: client sends ACK packet
+	char ack_packet[1024];
+	n = recv(sockfd, ack_packet, sizeof(ack_packet), 0);
+	if (n < 0) {
+    		error("ERROR receiving ACK packet");
+	} else if (n == 0) {
+    		error("Connection closed by client");
+	} else {
+    		// Check if received packet is valid ACK
+    		int ack_num = atoi(ack_packet);
+    		if (ack_num != rand_num + 2) {
+        		error("Invalid ACK packet received");
+    		} else {
+        		printf("Received ACK packet from client: %d\n", ack_num);
     		}
 	}
+			
+    		
+	
 
     
 	/* Diffie–Hellman key exchange */
@@ -156,46 +158,25 @@ int initServerNet(int port)
 	mpz_set_str(B, B_str, 16);
 
         // Server's key derivation
-        const size_t klen = 256;
+        const size_t klen = 512;
 	unsigned char kA[klen];
 	dhFinal(a, A, B, kA, klen);
 	
 	printf("Server's key:\n");
-	for (size_t i = 0; i < klen; i++) {
+	for (size_t i = 0; i < 256; i++) {
 		printf("%02x ",kA[i]);
 	}
 	printf("\n");
 	
-	memcpy(key, kA, klen);
-	
-	/* Generate another shared key and use that key as the IV */
-	
-        NEWZ(c); // secret key (c random exponent)
-	NEWZ(C); // public key: C = g^c mod p 
-	dhGen(c,C);
-	
-	// Send public key C to the client
-	char C_str[1024];	
-	mpz_get_str(C_str, 16, C);
-	send(sockfd, C_str, 1024, 0);
 
-	// Receive the public key D sent by the client
-	char D_str[1024];
-	recv(sockfd, D_str, 1024, 0);
-	mpz_set_str(D, D_str, 16);
-
-        // Server's key derivation
-        const size_t klen1 = 256;
-	unsigned char kC[klen1];
-	dhFinal(c, C, D, kC, klen1);
-	
 	printf("Server's IV:\n");
-	for (size_t i = 0; i < klen1; i++) {
-		printf("%02x ",kC[i]);
+	for (size_t i = 256; i < 512; i++) {
+		printf("%02x ",kA[i]);
 	}
 	printf("\n");
 	
-	memcpy(iv, kC, klen1);
+	memcpy(key, kA, 256); // Assign first 256 bits to key
+	memcpy(iv, kA + 256, 256); // Assign last 256 bits to iv
 	
 	close(listensock);
 	fprintf(stderr, "connection made, starting session...\n");
@@ -239,6 +220,7 @@ static int initClientNet(char* hostname, int port)
 	}
 
 	// Second handshake: server sends SYN and ACK packets
+	int syn_ack_num;
 	char syn_ack_packet[1024];
 	n = recv(sockfd, syn_ack_packet, sizeof(syn_ack_packet), 0);
 	if (n < 0) {
@@ -252,20 +234,20 @@ static int initClientNet(char* hostname, int port)
     		if (strncmp(syn_ack_packet, syn_ack_str, strlen(syn_ack_str)) != 0) {
         		error("Invalid SYN+ACK packet received");
     		} else {
-        		int syn_ack_num = atoi(strchr(syn_ack_packet, ':') + 1);
+        		syn_ack_num = atoi(strchr(syn_ack_packet, ':') + 1);
         		printf("Received SYN+ACK packet from server: %d\n", syn_ack_num);
+        	}
+        }
 
-        		// Third handshake: client sends ACK packet
-        		char ack_packet[1024];
-        		sprintf(ack_packet, "%d", syn_ack_num + 1);
-        		n = send(sockfd, ack_packet, strlen(ack_packet), 0);
-        		if (n < 0) {
-            			error("ERROR sending ACK packet");
-        		} else {
-            			printf("Sent ACK packet to server: %d\n", syn_ack_num + 1);
-        		}
-    		}
-	}
+        // Third handshake: client sends ACK packet
+        char ack_packet[1024];
+        sprintf(ack_packet, "%d", syn_ack_num + 1);
+        n = send(sockfd, ack_packet, strlen(ack_packet), 0);
+        if (n < 0) {
+            	error("ERROR sending ACK packet");
+        } else {
+            	printf("Sent ACK packet to server: %d\n", syn_ack_num + 1);
+        }
 
         
 	/* Diffie–Hellman key exchange */
@@ -286,46 +268,24 @@ static int initClientNet(char* hostname, int port)
 	send(sockfd, B_str, 1024, 0);
 
 	// Client's key derivation
-	const size_t klen = 256;
+	const size_t klen = 512;
 	unsigned char kB[klen];
 	dhFinal(b, B, A, kB, klen);
         
         printf("Client's key:\n");
-	for (size_t i = 0; i < klen; i++) {
+	for (size_t i = 0; i < 256; i++) {
+		printf("%02x ",kB[i]);
+	}
+	printf("\n");
+        
+        printf("Client's IV:\n");
+	for (size_t i = 256; i < 512; i++) {
 		printf("%02x ",kB[i]);
 	}
 	printf("\n");
 	
-	memcpy(key, kB, klen);
-	
-	/* Generate another shared key and use that key as the IV */
-	
-	NEWZ(d); // secret key (d random exponent)
-	NEWZ(D); // public key: D = g^d mod p
-	dhGen(d,D);
-	
-	// Receive the public key C from the server
-	char C_str[1024];
-	recv(sockfd, C_str, 1024, 0);
-	mpz_set_str(C, C_str, 16);
-
-	// Send public key D to the server
-	char D_str[1024];
-	mpz_get_str(D_str, 16, D);
-	send(sockfd, D_str, 1024, 0);
-
-	// Client's key derivation
-	const size_t klen1 = 256;
-	unsigned char kD[klen1];
-	dhFinal(d, D, C, kD, klen1);
-        
-        printf("Client's IV:\n");
-	for (size_t i = 0; i < klen1; i++) {
-		printf("%02x ",kD[i]);
-	}
-	printf("\n");
-	
-	memcpy(iv, kD, klen1);
+	memcpy(key, kB, 256); // Assign first 256 bits to key
+	memcpy(iv, kB + 256, 256); // Assign last 256 bits to iv
 
 	/* at this point, should be able to send/recv on sockfd */
 	return 0;
@@ -819,7 +779,7 @@ void* recvMsg(void*)
             pthread_cond_signal(&qcv);
             pthread_mutex_unlock(&qmx);
         } else {
-            string msg = "Message has been tampered with! This is a known bug, please send a message to the other party.";
+            string msg = "Message has been tampered with!";
             pthread_mutex_lock(&qmx);
             mq.push_back({false, msg, "Warning", msg_win});
             pthread_cond_signal(&qcv);
