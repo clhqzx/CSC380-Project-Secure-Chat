@@ -137,9 +137,6 @@ int initServerNet(int port)
 	}
 			
     		
-	
-
-    
 	/* Diffie–Hellman key exchange */
 	
 	init("params");
@@ -168,7 +165,6 @@ int initServerNet(int port)
 	}
 	printf("\n");
 	
-
 	printf("Server's IV:\n");
 	for (size_t i = 256; i < 512; i++) {
 		printf("%02x ",kA[i]);
