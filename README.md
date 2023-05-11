@@ -2,9 +2,16 @@
 ## About The Project
 This is an end-to-end chat program. It provides correspondent authentication, message integrity verification, and encrypted message delivery.
 
-In this program, the server and the client first perform the Three-way Handshake Process. Then use the Diffie–Hellman key exchange to generate the shared key and iv. The shared key and iv will be used to calculate the MAC value of the message and encrypt and decrypt the message. After that, the two parties began to communicate.
+In this program, the server and the client first perform the Three-way Handshake Process. 
 
-In order to ensure the integrity and security of the message, this program will calculate the MAC value of the original message and encrypt the original message. Then combine the MAC value and the encrypted message into a message and send it to the other party. After receiving the message, the other party will split the message to obtain the MAC value and the encrypted message. Then decrypt the encrypted message, and calculate the MAC value of the decrypted message. We verify whether the message has been tampered with by a third party by comparing the two MAC values.
+![image text](https://www.coengoedegebure.com/content/images/2018/09/handshake.png)
+
+Then use the Diffie–Hellman key exchange to generate the shared key and iv. The shared key and iv will be used to calculate the MAC value of the message and encrypt and decrypt the message. 
+![image text](https://i.imgur.com/BqymNdp.png)
+
+In order to ensure the integrity and security of the message, this program will calculate the MAC value of the original message and encrypt the original message. Then combine the MAC value and the encrypted message into a message and send it to the other party. After receiving the message, the other party will split the message to obtain the MAC value and the encrypted message. Then decrypt the encrypted message, and calculate the MAC value of the decrypted message. This program will verify whether the message has been tampered with by a third party by comparing the two MAC values.
+
+![image text](https://i.imgur.com/HLp6q9B.jpeg)
 
 <!-- GETTING STARTED -->
 ## Getting Started
